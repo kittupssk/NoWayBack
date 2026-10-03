@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Police &amp; Thief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a night-time floor plan on the left, a case file panel on the right; stacks on phones. Single dark look by choice. */
+:root{
+  --night:#0d1220; --floor:#172036; --floor-hi:#24335a; --wall:#34425f; --door:#4b5c84;
+  --ink:#e8ecf5; --muted:#8f99b2; --line:#26314c; --panel:#121a2d;
+  --cold:#4f8fe0; --faint:#e8c84e; --warm:#f2892b; --hot:#ef4351;
+  --thief:#c27cff; --thief-dim:#33244f; --loot:#41d6b4; --police:#f4f6fb; --focus:#9fd0ff;
+  --display:"Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --body:"Barlow", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--night);color:var(--ink)}
+body{font-family:var(--body);font-size:16px;line-height:1.5}
+.app{max-width:1120px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2.2rem,6vw,3.4rem);line-height:.9;letter-spacing:.01em;margin:0;text-transform:uppercase}
+h1 span{color:var(--thief)}
+.tag{margin:6px 0 0;color:var(--muted);font-size:.95rem}
+.layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr)}}
+.boardwrap{display:flex;flex-direction:column;gap:10px;min-width:0}
+.strip{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;min-height:24px}
+.pips{display:flex;gap:4px;flex-wrap:wrap}
+.pip{width:14px;height:8px;border-radius:2px;background:var(--line)}
+.pip.used{background:var(--muted)}
+.pip.now{background:var(--ink)}
+#board{width:100%;height:auto;display:block;max-width:640px}
+#board.dim{opacity:.35;filter:saturate(.3)}
+.door{fill:var(--door)}
+.wall{stroke:var(--muted);stroke-width:7;stroke-linecap:round;opacity:.75}
+.ent{font-family:var(--mono);font-size:12px;letter-spacing:.2em;fill:var(--muted);text-anchor:middle}
+.room rect.base{fill:var(--floor);stroke:var(--wall);stroke-width:2;transition:fill .2s}
+.room .rl{font-family:var(--mono);font-size:13px;fill:var(--muted)}
+.room.click{cursor:pointer}
+.room.click:focus{outline:none}
+.room.click:focus-visible rect.base{stroke:var(--focus);stroke-width:4}
+.room.opt rect.base{stroke:var(--ink);stroke-dasharray:7 5}
+.room.opt:hover rect.base{fill:var(--floor-hi)}
+.room.sel rect.base{stroke:var(--ink);stroke-width:4;stroke-dasharray:none}
+.room.opt.sel rect.base{fill:var(--floor-hi)}
+.room.blocked rect.base{fill:var(--night)}
+.room.visited rect.base{fill:url(#hatch)}
+.room.thief-here rect.base{fill:var(--thief-dim);stroke:var(--thief)}
+.room.sig-cold rect.base{fill:var(--cold)}
+.room.sig-faint rect.base{fill:var(--faint)}
+.room.sig-warm rect.base{fill:var(--warm)}
+.room.sig-hot rect.base{fill:var(--hot)}
+.room[class*="sig-"] .rl{fill:var(--night)}
+.room.caught rect.base{stroke:var(--hot);stroke-width:5}
+.step{font-family:var(--mono);font-size:12px;fill:var(--thief);text-anchor:end}
+.mark{font-family:var(--display);font-size:46px;fill:var(--muted);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.chip-cold{fill:var(--cold)}.chip-faint{fill:var(--faint)}.chip-warm{fill:var(--warm)}.chip-hot{fill:var(--hot)}
+.chip{stroke:var(--night);stroke-width:2}
+.ring{fill:none;stroke:var(--hot);stroke-width:3;stroke-dasharray:4 6}
+.pulse{fill:none;stroke:var(--hot);stroke-width:4;animation:pulse 1.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes pulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.18)}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:.6}}
+.gem{fill:var(--loot);stroke:var(--night);stroke-width:2}
+.gem-empty{fill:none;stroke:var(--loot);stroke-width:2;stroke-dasharray:3 3}
+.exitdoor{fill:var(--loot)}
+.exitlbl{font-family:var(--mono);font-size:12px;letter-spacing:.2em;fill:var(--loot);text-anchor:middle}
+.ring.alarmring{stroke:var(--loot)}
+.bg-loot{background:var(--loot)}
+.levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+@media (max-width:420px){.levels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.choice.lvl{justify-content:center;align-items:center;padding:8px 6px}
+.choice.lvl input{margin-top:0}
+.clocks{display:flex;gap:10px}
+.clk{padding:2px 8px;border:1px solid var(--line);border-radius:6px;font-variant-numeric:tabular-nums}
+.clk b{font-weight:500;color:var(--ink)}
+.clk.on{border-color:var(--ink)}
+.clk.low b{color:var(--hot)}
+.clk.on.low{border-color:var(--hot)}
+.lvlsum{font-family:var(--mono);font-size:.78rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.95rem}
+.check input{margin-top:5px;accent-color:var(--loot)}
+.check small{display:block;color:var(--muted);font-size:.85rem}
+.tok-p{fill:var(--police)}.tok-p-star{fill:var(--night)}
+.tok-t{fill:var(--thief)}.tok-t-eye{fill:var(--night)}
+.path-p{fill:none;stroke:var(--police);stroke-width:3;stroke-dasharray:2 7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.path-t{fill:none;stroke:var(--thief);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.dot-t{fill:var(--thief)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.eyebrow{margin:0;font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.eyebrow b{color:var(--ink);font-weight:500}
+.panel h2{font-family:var(--display);font-weight:700;font-size:2rem;line-height:1;margin:0;text-transform:uppercase;letter-spacing:.01em;text-wrap:balance}
+.panel p{margin:0}
+.hint{color:var(--muted);font-size:.9rem}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+legend{font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding:0}
+.choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.choice:has(input:checked){border-color:var(--ink);background:var(--floor)}
+.choice input{margin-top:5px;accent-color:var(--thief)}
+.choice small{display:block;color:var(--muted);font-size:.85rem}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row label{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+select{font:inherit;font-family:var(--body);font-size:1rem;letter-spacing:0;text-transform:none;color:var(--ink);background:var(--floor);border:1px solid var(--wall);border-radius:6px;padding:6px 10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-weight:600;border-radius:8px;padding:10px 16px;border:1px solid var(--wall);background:var(--floor);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){background:var(--floor-hi)}
+button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--night);border-color:var(--ink)}
+button.primary:hover:not(:disabled){background:var(--police)}
+button.thiefbtn{background:var(--thief);color:var(--night);border-color:var(--thief)}
+button.ghost{background:transparent}
+button.on{border-color:var(--faint);color:var(--faint)}
+.signal{display:flex;gap:14px;align-items:center;padding:14px;border-radius:10px;border:1px solid var(--line);background:var(--night)}
+.swatch{width:56px;height:56px;border-radius:8px;flex:none}
+.signal b{font-family:var(--display);font-size:1.7rem;text-transform:uppercase;line-height:1;display:block}
+.signal span{color:var(--muted);font-size:.92rem}
+.bg-cold{background:var(--cold)}.bg-faint{background:var(--faint)}.bg-warm{background:var(--warm)}.bg-hot{background:var(--hot)}.bg-quiet{background:var(--floor-hi)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:.82rem;font-variant-numeric:tabular-nums;max-height:220px;overflow:auto}
+.log li{display:grid;grid-template-columns:58px 40px 12px 1fr;gap:8px;align-items:center;color:var(--muted)}
+.log li i{width:12px;height:12px;border-radius:3px;display:block}
+.log li em{font-style:normal;color:var(--ink)}
+.trail{font-family:var(--mono);font-size:.85rem;color:var(--thief);word-break:break-word}
+.result h2.pw{color:var(--police)}.result h2.tw{color:var(--thief)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:.9rem}
+.kv dt{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:2px}
+.kv dd{margin:0;font-family:var(--mono);word-break:break-word}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;border-top:1px solid var(--line);padding-top:20px}
+@media (max-width:820px){.rules{grid-template-columns:minmax(0,1fr)}}
+.rules h3{font-family:var(--display);font-size:1.4rem;text-transform:uppercase;margin:0 0 8px;letter-spacing:.02em}
+.rules ol,.rules ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;color:var(--ink);font-size:.95rem}
+.rules p{margin:0 0 8px;font-size:.95rem;color:var(--ink)}
+.legend{list-style:none;padding:0!important}
+.legend li{display:grid;grid-template-columns:18px 1fr;gap:10px;align-items:start}
+.legend i{width:18px;height:18px;border-radius:4px;display:block;margin-top:3px}
+.legend b{font-weight:600}
+.muted{color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--night);font-weight:600;padding:8px 16px;border-radius:999px;font-size:.9rem;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Police <span>&amp;</span> Thief</h1>
+      <p class="tag">A hidden-movement chase through a building of connected rooms.</p>
+    </div>
+    <button class="ghost" id="quit" hidden>Quit to setup</button>
+  </header>
+
+  <main class="layout">
+    <section class="boardwrap" aria-label="Building floor plan">
+      <div class="strip" id="strip"></div>
+      <div id="boardHost"></div>
+    </section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </main>
+
+  <section class="rules">
+    <div>
+      <h3>How to play</h3>
+      <ol>
+        <li>The thief (Player A) picks a starting room while the police (Player B) look away. It can't be the entrance, an exit or a vault.</li>
+        <li>The police start at the entrance. Each turn they move through a door to a neighbouring room, or wait where they are. Walls (thick grey lines) block the way.</li>
+        <li>After each police turn, the thief moves to a neighbouring room it has never visited. The thief cannot wait.</li>
+        <li><b>Heist:</b> both players can see the exits and the three vaults (<span style="color:var(--loot)">◆</span>). Walking into a vault takes its loot. With 2 loot, walking into either exit wins. Robbing a vault trips a silent alarm. On Easy and Normal the police hear it at the start of their next turn. On Hard it reaches them one turn late, after the thief has moved on.</li>
+        <li>The police win by entering the thief's room, or if the thief walks into them or is cornered. In Heist they also win if time runs out. In Classic, the thief wins by staying free until time runs out.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Signals</h3>
+      <p class="muted">The police's room lights up at the start of every police turn. The strongest signal wins.</p>
+      <ul class="legend">
+        <li><i class="bg-hot"></i><span><b>Hot.</b> The thief is in a room next to you right now.</span></li>
+        <li><i class="bg-warm"></i><span><b>Warm.</b> The thief was in your room or next to it one move ago.</span></li>
+        <li><i class="bg-faint"></i><span><b>Faint.</b> The thief passed through your room or next to it a few moves ago: 2–4 on Easy, 2–3 on Normal. Hard has no Faint signal.</span></li>
+        <li><i class="bg-cold"></i><span><b>Cold.</b> No sign of the thief nearby.</span></li>
+      </ul>
+      <p class="muted" style="margin-top:10px">The thief gets one warning: <b style="color:var(--ink)">Footsteps</b> when the police are in a room next door.</p>
+    </div>
+    <div>
+      <h3>Design notes</h3>
+      <p><b>Why the police can wait.</b> On a square grid, every move changes the distance between the two players by one. Without a wait move, half of all hiding spots could never be caught. Waiting lets the police fix that.</p>
+      <p><b>Why the police can see the vaults.</b> Known vaults give the police something to plan around: guard the loot, or guard the exits. The thief has to step into a known room to win, and the silent alarm makes each grab a risk.</p>
+      <p><b>Why blue to red.</b> The colours follow a heat scale, so red means hottest and blue means cold. Each signal also has a name, so it still reads without colour.</p>
+    </div>
+  </section>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+const LET = 'ABCDEFGHI';
+const SIG = {
+  hot:   ['Hot',   'The thief is in a room next to you right now.'],
+  warm:  ['Warm',  'The thief was in your room or next to it one move ago.'],
+  faint: ['Faint', 'The thief passed through your room or next to it 2–3 moves ago.'],
+  cold:  ['Cold',  'No sign of the thief nearby.']
+};
+const LEVELS = {
+  easy:   { name: 'Easy',   size: 5, turns: { heist: 14, classic: 12 },  alarms: 'instant', faint: [3, 4, 5], ai: 'easy', exits: 'same', loop: 0.65,
+            blurb: 'Exits close together, a longer trail, instant alarms, and a careless computer thief.' },
+  normal: { name: 'Normal', size: 5, turns: { heist: 14, classic: 10 }, alarms: 'instant', faint: [3, 4],    ai: 'normal', exits: 'opposite', loop: 0.75,
+            blurb: 'The balanced game. The trail lasts 2–3 moves.' },
+  hard:   { name: 'Hard',   size: 6, turns: { heist: 14, classic: 11 }, alarms: 'delayed', faint: [],        ai: 'hard', exits: 'three', loop: 0.85,
+            blurb: 'Big, open building, no Faint signal, alarms that arrive one turn late, and a cunning computer thief.' }
+};
+let cfg = { mode: 'pvp', game: 'heist', level: 'normal', alarms: 'instant', exits: 'opposite', clock: 120, layout: 'shape', size: 5, maxTurns: 14 };
+const ALARM_TXT = { instant: 'alarms instant', delayed: 'alarms one turn late', off: 'alarms off' };
+const EXIT_TXT = { same: '2 exits close together', opposite: '2 exits far apart', three: '3 exits spread out' };
+let S;
+function applyLevel() {
+  const L = LEVELS[cfg.level];
+  if (L) { cfg.size = L.size; cfg.maxTurns = L.turns[cfg.game]; cfg.alarms = L.alarms; cfg.exits = L.exits; }
+}
+const trailWord = f => !f.length ? 'off' : f.length === 1 ? '2 moves ago' : `2–${f[f.length - 1] - 1} moves ago`;
+const sigDesc = k => k === 'faint' ? `The thief passed through your room or next to it ${trailWord(S.faint)}.` : SIG[k][1];
+
+function fresh(c) {
+  const n = c.layout === 'shape' ? c.size + 1 : c.size, L = LEVELS[c.level];
+  return { voids: null, side: {}, shapeName: '', outside: null, mode: c.mode, game: c.game, level: c.level, faint: L ? L.faint : [3, 4], ai: L ? L.ai : 'normal', loop: L ? L.loop : 0.55,
+    alarms: c.alarms, size: n, maxTurns: c.maxTurns, entrance: (n - 1) * n + Math.floor(n / 2),
+    layout: c.layout || 'random', adj: null, dmat: null, exitKind: c.exits || 'opposite', exits: [], clockOn: c.clock > 0, bank: { police: c.clock * 1000, thief: c.clock * 1000 }, clockPhase: null, tickAt: null,
+    vaults: [], looted: [], need: 2, pending: [], alarmNow: null, alarmLate: false, knownEmpty: [],
+    thief: [], police: [], signals: [], turn: 1, phase: 'setup', next: null, sel: null,
+    marks: {}, pencil: false, notice: false, sig: null, result: null, aiP: null };
+}
+/* ---------- building shape ---------- */
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+const manh = (a, b) => Math.abs(a % S.size - b % S.size) + Math.abs(Math.floor(a / S.size) - Math.floor(b / S.size));
+const isRoom = i => !S.voids || !S.voids[i];
+const roomList = () => { const o = []; for (let i = 0; i < S.size * S.size; i++) if (isRoom(i)) o.push(i); return o; };
+const SHAPES = { L: 'L-shaped', Z: 'Z-shaped', T: 'T-shaped', U: 'U-shaped', H: 'H-shaped', plus: 'cross-shaped', court: 'courtyard', rect: 'long', blob: 'rambling' };
+function genShape(n, target) {
+  const ri = (a, b) => a + Math.floor(Math.random() * (Math.max(0, b - a) + 1));
+  const conn = v => { const rooms = []; for (let i = 0; i < n * n; i++) if (!v[i]) rooms.push(i);
+    if (!rooms.length) return 0; const seen = new Set([rooms[0]]), q = [rooms[0]];
+    while (q.length) { const u = q.shift(), r = Math.floor(u / n), c = u % n;
+      for (const [rr, cc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) { const j = rr * n + cc;
+        if (rr >= 0 && cc >= 0 && rr < n && cc < n && !v[j] && !seen.has(j)) { seen.add(j); q.push(j); } } }
+    return seen.size === rooms.length ? rooms.length : 0; };
+  const edgeRooms = v => { const o = []; for (let i = 0; i < n * n; i++) { if (v[i]) continue; const r = Math.floor(i / n), c = i % n;
+    if (r === 0 || c === 0 || r === n - 1 || c === n - 1 || v[i - n] || v[i + n] || v[i - 1] || v[i + 1]) o.push(i); } return o; };
+  const nibble = v => { for (const i of edgeRooms(v).sort(() => Math.random() - .5)) { v[i] = true; if (conn(v)) return true; v[i] = false; } return false; };
+  for (let tries = 0; tries < 400; tries++) {
+    let v = Array(n * n).fill(false);
+    const cut = (r0, c0, h, w) => { for (let r = r0; r < r0 + h; r++) for (let c = c0; c < c0 + w; c++) if (r >= 0 && c >= 0 && r < n && c < n) v[r * n + c] = true; };
+    const kind = rnd(Object.keys(SHAPES)), h2 = Math.max(1, Math.floor((n - 2) / 2));
+    if (kind === 'L') cut(0, 0, ri(2, n - 2), ri(2, n - 2));
+    else if (kind === 'Z') { const a = ri(1, h2 + 1), b = ri(2, n - 2); cut(0, 0, a, b); cut(n - a, n - b, a, b); }
+    else if (kind === 'T') { const a = ri(2, n - 2), b = ri(1, h2); cut(n - a, 0, a, b); cut(n - a, n - b, a, b); }
+    else if (kind === 'U') { const w = ri(1, n - 2), c0 = ri(1, n - 1 - w); cut(0, c0, ri(2, n - 2), w); }
+    else if (kind === 'H') { const w = ri(1, n - 2), c0 = ri(1, n - 1 - w), a = ri(1, h2); cut(0, c0, a, w); cut(n - a, c0, a, w); }
+    else if (kind === 'plus') { const a = ri(1, h2); cut(0, 0, a, a); cut(0, n - a, a, a); cut(n - a, 0, a, a); cut(n - a, n - a, a, a); }
+    else if (kind === 'court') { const h = ri(1, n - 3), w = ri(1, n - 3); cut(ri(1, n - 1 - h), ri(1, n - 1 - w), h, w); }
+    else if (kind === 'rect') { cut(n - 1, 0, 1, n); if (Math.random() < .7) cut(0, n - 1, n, 1); }
+    let count = conn(v);
+    if (!count) continue;
+    if (kind === 'blob') { while (count > target && nibble(v)) count--; }
+    else for (let k = ri(0, 2); k > 0 && nibble(v); k--) count--;
+    // random rotation and mirror so every template can face any direction
+    for (let k = ri(0, 3); k > 0; k--) { const w = Array(n * n); for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) w[r * n + c] = v[(n - 1 - c) * n + r]; v = w; }
+    if (Math.random() < .5) { const w = Array(n * n); for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) w[r * n + c] = v[r * n + n - 1 - c]; v = w; }
+    count = conn(v);
+    if (count && Math.abs(count - target) <= 4 && count >= 12) return { v, name: SHAPES[kind] };
+  }
+  return { v: Array(n * n).fill(false), name: 'square' };
+}
+/* sides of a room that face the street: the edge of the plot, or open ground connected to it (not an enclosed courtyard) */
+function outSides(i) {
+  const n = S.size, r = Math.floor(i / n), c = i % n;
+  if (!S.outside) {
+    S.outside = Array(n * n).fill(false); const q = [];
+    for (let k = 0; k < n * n; k++) { const rr = Math.floor(k / n), cc = k % n;
+      if (!isRoom(k) && (rr === 0 || cc === 0 || rr === n - 1 || cc === n - 1)) { S.outside[k] = true; q.push(k); } }
+    while (q.length) { const u = q.shift(), rr = Math.floor(u / n), cc = u % n;
+      for (const [a, b] of [[rr - 1, cc], [rr + 1, cc], [rr, cc - 1], [rr, cc + 1]]) { const j = a * n + b;
+        if (a >= 0 && b >= 0 && a < n && b < n && !isRoom(j) && !S.outside[j]) { S.outside[j] = true; q.push(j); } } }
+  }
+  const o = [], open = (rr, cc) => rr < 0 || cc < 0 || rr >= n || cc >= n || S.outside[rr * n + cc];
+  if (open(r - 1, c)) o.push('top'); if (open(r + 1, c)) o.push('bottom'); if (open(r, c - 1)) o.push('left'); if (open(r, c + 1)) o.push('right');
+  return o;
+}
+function pickEntrance() {
+  const mid = (S.size - 1) / 2, cand = roomList().filter(i => outSides(i).includes('bottom'));
+  const best = Math.min(...cand.map(i => Math.abs(i % S.size - mid)));
+  return rnd(cand.filter(i => Math.abs(i % S.size - mid) === best));
+}
+function genExits(kind) {
+  const e = S.entrance, out = roomList().filter(i => outSides(i).length && manh(i, e) >= 3 && dist(i, e) >= 3);
+  const topK = (pool, f, k = 3) => rnd(pool.slice().sort((a, b) => f(b) - f(a)).slice(0, k));
+  let ex;
+  if (out.length < 3) ex = out.slice(0, 2);
+  else if (kind === 'same') {
+    const far = out.filter(i => dist(i, e) >= 3), e1 = rnd(far.length ? far : out);
+    let near2 = out.filter(i => i !== e1 && dist(i, e1) >= 2 && dist(i, e1) <= 4);
+    const sameSide = near2.filter(i => outSides(i).some(sd => outSides(e1).includes(sd)));
+    if (sameSide.length) near2 = sameSide;
+    ex = [e1, near2.length ? rnd(near2) : topK(out.filter(i => i !== e1), i => -dist(i, e1))];
+  } else {
+    const e1 = topK(out, i => dist(i, e) + Math.random() * 3, 6), e2 = topK(out.filter(i => i !== e1), i => dist(i, e1));
+    ex = [e1, e2];
+    if (kind === 'three') ex.push(topK(out.filter(i => !ex.includes(i)), i => Math.min(dist(i, e1), dist(i, e2))));
+  }
+  for (const x of ex) S.side[x] = rnd(outSides(x));
+  return ex;
+}
+const special = i => !isRoom(i) || i === S.entrance || S.vaults.includes(i) || S.exits.includes(i);
+function genVaults() {
+  const n = S.size, bad = new Set([S.entrance, ...nb(S.entrance), ...S.exits]);
+  for (let tries = 0; tries < 500; tries++) {
+    const pool = roomList().filter(i => !bad.has(i));
+    const v = [];
+    while (v.length < 3 && pool.length) { const k = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; if (v.every(x => dist(x, k) >= 2 && manh(x, k) >= 2)) v.push(k); }
+    if (v.length === 3) return v;
+  }
+  return [];
+}
+function bfs(from, blocked) {
+  const d = new Map([[from, 0]]), q = [from];
+  while (q.length) { const u = q.shift(); for (const v of nb(u)) if (!d.has(v) && !blocked.has(v)) { d.set(v, d.get(u) + 1); q.push(v); } }
+  return d;
+}
+S = fresh(cfg);
+
+const gridNb = i => { const n = S.size, r = Math.floor(i / n), c = i % n, o = [];
+  if (r > 0) o.push(i - n); if (r < n - 1) o.push(i + n); if (c > 0) o.push(i - 1); if (c < n - 1) o.push(i + 1); return o.filter(isRoom); };
+const nb = i => S.adj ? S.adj[i] : gridNb(i);
+let LOOP = 0.5; // share of extra doors kept on top of the guaranteed-connected skeleton
+/* Random building: a random spanning tree keeps every room reachable, then some extra doors add loops. */
+function genLayout() {
+  const n = S.size, N = n * n, parent = [...Array(N).keys()], edges = [];
+  const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+  for (let i = 0; i < N; i++) for (const j of gridNb(i)) if (j > i) edges.push([i, j]);
+  for (let k = edges.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [edges[k], edges[j]] = [edges[j], edges[k]]; }
+  const adj = Array.from({ length: N }, () => []);
+  const add = ([a, b]) => { adj[a].push(b); adj[b].push(a); };
+  const rest = [];
+  for (const e of edges) { const a = find(e[0]), b = find(e[1]); if (a !== b) { parent[a] = b; add(e); } else rest.push(e); }
+  for (const e of rest) if (Math.random() < (S.loop ?? LOOP)) add(e);
+  // the entrance always gets at least two doors so the police never start boxed in
+  const e = S.entrance;
+  if (adj[e].length < 2) { const f = gridNb(e).find(j => !adj[e].includes(j)); if (f != null) add([e, f]); }
+  return adj;
+}
+function genDist() {
+  const N = S.size * S.size, m = [];
+  for (let i = 0; i < N; i++) { const d = Array(N).fill(99), q = [i]; d[i] = 0;
+    while (q.length) { const u = q.shift(); for (const v of nb(u)) if (d[v] === 99) { d[v] = d[u] + 1; q.push(v); } }
+    m.push(d); }
+  return m;
+}
+const lab = i => LET[i % S.size] + (S.size - Math.floor(i / S.size));
+const near = (a, b) => a === b || nb(a).includes(b);
+const last = a => a[a.length - 1];
+const dist = (a, b) => S.dmat ? S.dmat[a][b] : Math.abs(a % S.size - b % S.size) + Math.abs(Math.floor(a / S.size) - Math.floor(b / S.size));
+const thiefOptions = () => nb(last(S.thief)).filter(i => !S.thief.includes(i));
+
+function signal() {
+  const p = last(S.police), t = S.thief, L = t.length;
+  if (nb(p).includes(t[L - 1])) return 'hot';
+  if (L >= 2 && near(p, t[L - 2])) return 'warm';
+  for (const k of S.faint) if (L >= k && near(p, t[L - k])) return 'faint';
+  return 'cold';
+}
+
+/* ---------- flow ---------- */
+function startGame() {
+  S = fresh(cfg);
+  if (S.layout === 'shape') { const sh = genShape(S.size, cfg.size * cfg.size); S.voids = sh.v; S.shapeName = sh.name; }
+  S.entrance = pickEntrance(); S.side = { [S.entrance]: 'bottom' };
+  S.police = [S.entrance];
+  if (S.layout !== 'open') S.adj = genLayout();
+  S.dmat = genDist();
+  if (S.game === 'heist') { S.exits = genExits(S.exitKind); S.vaults = genVaults(); }
+  if (S.mode === 'cpu') { S.thief = [aiPlace()]; S.aiP = [S.entrance]; beginPolice(); }
+  else S.phase = 'place';
+  render();
+}
+function beginPolice() {
+  S.sig = signal();
+  S.alarmNow = null;
+  for (const a of S.pending.filter(a => a.due <= S.turn)) { S.alarmNow = a.room; S.alarmLate = a.due - a.at > 1; S.knownEmpty.push(a.room); }
+  S.pending = S.pending.filter(a => a.due > S.turn);
+  S.signals.push({ turn: S.turn, room: last(S.police), lvl: S.sig });
+  S.sel = null; S.pencil = false;
+  if (S.mode === 'pvp') { S.phase = 'handoff'; S.next = 'police'; } else S.phase = 'police';
+}
+function policeAct(target) {
+  S.police.push(target); S.sel = null; S.pencil = false;
+  if (target === last(S.thief)) return end('police', 'caught');
+  if (S.game === 'classic' && S.turn >= S.maxTurns) return end('thief', 'escaped');
+  if (S.mode === 'cpu') { aiThiefTurn(); return; }
+  beginThief(); render();
+}
+function beginThief() {
+  S.notice = nb(last(S.thief)).includes(last(S.police));
+  if (!thiefOptions().length) return end('police', 'cornered');
+  S.sel = null; S.phase = 'handoff'; S.next = 'thief';
+}
+function thiefAct(m) {
+  S.thief.push(m); S.sel = null;
+  if (m === last(S.police)) return end('police', 'walked');
+  if (S.game === 'heist') {
+    if (S.vaults.includes(m) && !S.looted.includes(m)) { S.looted.push(m); if (S.alarms !== 'off') S.pending.push({ room: m, at: S.turn, due: S.turn + (S.alarms === 'delayed' ? 2 : 1) }); toastLoot(m); }
+    if (S.exits.includes(m) && S.looted.length >= S.need) return end('thief', 'heist');
+    if (S.turn >= S.maxTurns) return end('police', 'timeout');
+  }
+  S.turn++; beginPolice(); render();
+}
+function end(w, why) { S.phase = 'over'; S.result = { w, why }; S.sel = null; render(); }
+
+/* ---------- computer thief ---------- */
+function aiPlace() {
+  const n = S.size, c = [];
+  for (let i = 0; i < n * n; i++) if (!special(i) && dist(i, S.entrance) >= Math.max(2, Math.floor(n / 2))) c.push(i);
+  return c[Math.floor(Math.random() * c.length)];
+}
+function aiThiefTurn() {
+  const t = last(S.thief);
+  let P = new Set();
+  for (const p of S.aiP) { P.add(p); nb(p).forEach(q => P.add(q)); }
+  P.delete(t);
+  const notice = nb(t).includes(last(S.police));
+  P = [...P].filter(p => notice ? nb(t).includes(p) : !nb(t).includes(p));
+  const opts = thiefOptions();
+  if (!opts.length) return end('police', 'cornered');
+  let best = opts[0], bs = -1e9;
+  for (const m of opts) {
+    const inP = P.filter(p => p === m).length / P.length;
+    const adj = P.filter(p => near(p, m)).length / P.length;
+    const exits = nb(m).filter(i => !S.thief.includes(i)).length;
+    const W = { easy: [0, 0, 30], normal: [60, 25, 3], hard: [90, 40, 1] }[S.ai];
+    const room = bfs(m, new Set(S.thief)).size; // unvisited rooms still reachable after this move
+    let s = -W[0] * inP - W[1] * adj + 4 * Math.min(exits, 3) + (exits === 0 ? -30 : 0) + 2 * Math.min(room, 10) + (room < 4 ? -25 : 0) + Math.random() * W[2];
+    if (S.game === 'heist') {
+      const grab = S.vaults.includes(m) && !S.looted.includes(m), have = S.looted.length + (grab ? 1 : 0);
+      if (grab) s += 25;
+      if (have >= S.need && S.exits.includes(m)) s += 1000;
+      else {
+        const targets = have >= S.need ? S.exits : S.vaults.filter(v => !S.looted.includes(v) && v !== m);
+        const d = bfs(m, new Set(S.thief));
+        const best = Math.min(...targets.map(x => d.has(x) ? d.get(x) : Infinity));
+        s += best === Infinity ? -200 : -7 * best;
+      }
+    }
+    if (s > bs) { bs = s; best = m; }
+  }
+  S.aiP = P.filter(p => p !== best);
+  toast('The thief moved.');
+  thiefAct(best);
+}
+
+/* ---------- board ---------- */
+const CS = 100, G = 20, M = 30, T = 22;
+const gem = (x, y, cls) => `<polygon class="${cls}" points="${x},${y - 12} ${x + 10},${y} ${x},${y + 12} ${x - 10},${y}"/>`;
+function star(cx, cy, R, r) {
+  let p = [];
+  for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r : R; p.push((cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1)); }
+  return p.join(' ');
+}
+const tokP = (x, y) => `<circle class="tok-p" cx="${x}" cy="${y}" r="21"/><polygon class="tok-p-star" points="${star(x, y, 13, 5.5)}"/>`;
+const tokT = (x, y) => `<circle class="tok-t" cx="${x}" cy="${y}" r="21"/><ellipse class="tok-t-eye" cx="${x - 8}" cy="${y - 2}" rx="6" ry="4"/><ellipse class="tok-t-eye" cx="${x + 8}" cy="${y - 2}" rx="6" ry="4"/>`;
+
+function renderBoard() {
+  const n = S.size, ph = S.phase, W = M * 2 + n * CS + (n - 1) * G, H = W + 16 + T;
+  const px = i => M + (i % n) * (CS + G), py = i => M + T + Math.floor(i / n) * (CS + G);
+  const cx = i => px(i) + CS / 2, cy = i => py(i) + CS / 2;
+  let s = `<svg id="board" class="${ph === 'handoff' ? 'dim' : ''}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Floor plan, ${n} by ${n} rooms">
+    <defs><pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <rect width="10" height="10" style="fill:var(--floor)"/><line x1="0" y1="0" x2="0" y2="10" style="stroke:var(--thief-dim);stroke-width:6"/></pattern></defs>`;
+  for (let i = 0; i < n * n; i++) {
+    const r = Math.floor(i / n), c = i % n;
+    if (!isRoom(i)) continue;
+    if (c < n - 1 && isRoom(i + 1)) s += nb(i).includes(i + 1) ? `<rect class="door" x="${px(i) + CS}" y="${py(i) + CS / 2 - 16}" width="${G}" height="32" rx="3"/>`
+      : `<line class="wall" x1="${px(i) + CS + G / 2}" y1="${py(i) - 4}" x2="${px(i) + CS + G / 2}" y2="${py(i) + CS + 4}"/>`;
+    if (r < n - 1 && isRoom(i + n)) s += nb(i).includes(i + n) ? `<rect class="door" x="${px(i) + CS / 2 - 16}" y="${py(i) + CS}" width="32" height="${G}" rx="3"/>`
+      : `<line class="wall" x1="${px(i) - 4}" y1="${py(i) + CS + G / 2}" x2="${px(i) + CS + 4}" y2="${py(i) + CS + G / 2}"/>`;
+  }
+  const sideDoor = (x, sd, dc, tc, txt) => {
+    if (sd === 'top') return `<rect class="${dc}" x="${cx(x) - 16}" y="${py(x) - 12}" width="32" height="12" rx="3"/><text class="${tc}" x="${cx(x)}" y="${py(x) - 18}">${txt}</text>`;
+    if (sd === 'bottom') return `<rect class="${dc}" x="${cx(x) - 16}" y="${py(x) + CS}" width="32" height="12" rx="3"/><text class="${tc}" x="${cx(x)}" y="${py(x) + CS + 30}">${txt}</text>`;
+    const lx = sd === 'left' ? px(x) - 12 : px(x) + CS, tx = sd === 'left' ? px(x) - 20 : px(x) + CS + 20, ty = cy(x) + 40;
+    return `<rect class="${dc}" x="${lx}" y="${cy(x) - 16}" width="12" height="32" rx="3"/><text class="${tc}" dominant-baseline="central" transform="rotate(${sd === 'left' ? -90 : 90} ${tx} ${ty})" x="${tx}" y="${ty}">${txt}</text>`;
+  };
+  const e = S.entrance;
+  s += sideDoor(e, S.side[e] || 'bottom', 'door', 'ent', 'ENTRANCE');
+  for (const x of S.exits) s += sideDoor(x, S.side[x], 'exitdoor', 'exitlbl', 'EXIT');
+
+  const lastSig = {};
+  if (ph === 'police') S.signals.slice(0, -1).forEach(g => lastSig[g.room] = g.lvl);
+  let top = '';
+
+  for (let i = 0; i < n * n; i++) {
+    if (!isRoom(i)) continue;
+    const cls = ['room']; let inner = '', click = false;
+    if (ph === 'place') {
+      if (special(i)) cls.push('blocked'); else { cls.push('opt'); click = true; }
+      if (S.sel === i) { cls.push('sel'); inner += tokT(cx(i), cy(i)); }
+    } else if (ph === 'police') {
+      const p = last(S.police);
+      if (i === p) { cls.push('sig-' + S.sig); inner += tokP(cx(i), cy(i)); if (S.sig === 'hot') top += `<rect class="pulse" x="${px(i)}" y="${py(i)}" width="${CS}" height="${CS}" rx="6"/>`; }
+      if (nb(p).includes(i)) { cls.push('opt'); click = true; }
+      if (S.pencil) click = true;
+      if (S.sel === i) cls.push('sel');
+      if (lastSig[i] && i !== p) inner += `<circle class="chip chip-${lastSig[i]}" cx="${px(i) + CS - 15}" cy="${py(i) + CS - 15}" r="8"/>`;
+      if (S.marks[i] && i !== p) inner += `<text class="mark" x="${cx(i)}" y="${cy(i)}">${S.marks[i] === 'x' ? '✕' : '?'}</text>`;
+      if (S.sel === i && i !== p) inner += `<text class="mark" style="fill:var(--ink);font-size:30px" x="${cx(i)}" y="${cy(i)}">→</text>`;
+      if (S.alarmNow === i) top += `<rect class="ring alarmring" x="${px(i) - 7}" y="${py(i) - 7}" width="${CS + 14}" height="${CS + 14}" rx="10"/>`;
+    } else if (ph === 'thief') {
+      const t = last(S.thief), opts = thiefOptions();
+      const vi = S.thief.indexOf(i);
+      if (vi > -1 && i !== t) { cls.push('visited'); inner += `<text class="step" x="${px(i) + CS - 8}" y="${py(i) + 20}">${vi + 1}</text>`; }
+      if (i === t) { cls.push('thief-here'); inner += tokT(cx(i), cy(i)); if (S.notice) top += `<rect class="ring" x="${px(i) - 7}" y="${py(i) - 7}" width="${CS + 14}" height="${CS + 14}" rx="10"/>`; }
+      if (opts.includes(i)) { cls.push('opt'); click = true; }
+      if (S.sel === i) { cls.push('sel'); inner += `<text class="mark" style="fill:var(--thief);font-size:30px" x="${cx(i)}" y="${cy(i)}">→</text>`; }
+    } else if (ph === 'over') {
+      const vi = S.thief.indexOf(i);
+      if (vi > -1) { cls.push('visited'); inner += `<text class="step" x="${px(i) + CS - 8}" y="${py(i) + 20}">${vi + 1}</text>`; }
+      if (S.result.w === 'police' && i === last(S.thief)) cls.push('caught');
+    }
+    if (S.vaults.includes(i) && ph !== 'handoff') {
+      const emptied = ph === 'police' ? S.knownEmpty.includes(i) : S.looted.includes(i);
+      inner += gem(px(i) + 22, py(i) + CS - 24, emptied ? 'gem-empty' : 'gem');
+    }
+    const aria = `Room ${lab(i)}${i === e ? ', entrance' : ''}${S.exits.includes(i) ? ', exit' : ''}${S.vaults.includes(i) ? ', vault' : ''}`;
+    s += `<g class="${cls.join(' ')}${click ? ' click' : ''}" data-i="${i}"${click ? ` tabindex="0" role="button" aria-label="${aria}"` : ''}>
+      <rect class="base" x="${px(i)}" y="${py(i)}" width="${CS}" height="${CS}" rx="6"/>
+      <text class="rl" x="${px(i) + 9}" y="${py(i) + 20}">${lab(i)}</text>${inner}</g>`;
+  }
+  if (ph === 'over') {
+    const pts = (a, o) => a.map(i => `${cx(i) + o},${cy(i) + o}`).join(' ');
+    s += `<polyline class="path-t" points="${pts(S.thief, 8)}"/><polyline class="path-p" points="${pts(S.police, -8)}"/>`;
+    S.thief.forEach(i => s += `<circle class="dot-t" cx="${cx(i) + 8}" cy="${cy(i) + 8}" r="4"/>`);
+    const tp = last(S.thief), pp = last(S.police);
+    s += tp === pp ? tokT(cx(tp) + 14, cy(tp) + 10) + tokP(cx(pp) - 14, cy(pp) - 10) : tokT(cx(tp), cy(tp)) + tokP(cx(pp), cy(pp));
+  }
+  s += top + '</svg>';
+  document.getElementById('boardHost').innerHTML = s;
+}
+
+/* ---------- panel ---------- */
+const trailText = a => a.map(lab).join(' → ');
+function renderPanel() {
+  const P = document.getElementById('panel'), ph = S.phase, turnTxt = `Turn <b>${S.turn}</b> of ${S.maxTurns}`;
+  let h = '';
+  if (ph === 'setup') {
+    const opt = (lo, hi, v, f) => { let o = ''; for (let k = lo; k <= hi; k++) o += `<option value="${k}"${k === v ? ' selected' : ''}>${f(k)}</option>`; return o; };
+    h = `<p class="eyebrow">New game</p><h2>Set up the building</h2>
+      <fieldset><legend>Game</legend>
+        <label class="choice"><input type="radio" name="game" id="g-heist" value="heist"${cfg.game === 'heist' ? ' checked' : ''}><span><b>Heist</b><small>The thief grabs 2 of 3 loot and escapes through an exit before time runs out.</small></span></label>
+        <label class="choice"><input type="radio" name="game" id="g-classic" value="classic"${cfg.game === 'classic' ? ' checked' : ''}><span><b>Classic hide</b><small>The thief wins by staying free until the turns run out.</small></span></label>
+      </fieldset>
+      <fieldset><legend>Difficulty for the police</legend>
+        <div class="levels">${['easy', 'normal', 'hard', 'custom'].map(k => `<label class="choice lvl"><input type="radio" name="level" id="l-${k}" value="${k}"${cfg.level === k ? ' checked' : ''}><span><b>${k === 'custom' ? 'Custom' : LEVELS[k].name}</b></span></label>`).join('')}</div>
+        <p class="hint">${cfg.level === 'custom' ? 'Pick your own map size, turns, exits and alarms. The trail lasts 2–3 moves.' : LEVELS[cfg.level].blurb}</p>
+        <p class="lvlsum">${cfg.layout === 'shape' ? 'about ' + cfg.size * cfg.size + ' rooms' : cfg.size + ' × ' + cfg.size + ' rooms'} · ${cfg.maxTurns} turns${cfg.game === 'heist' ? ' · ' + EXIT_TXT[cfg.exits] + ' · ' + ALARM_TXT[cfg.alarms] : ''} · Faint signal ${trailWord(cfg.level === 'custom' ? [3, 4] : LEVELS[cfg.level].faint)}</p>
+      </fieldset>
+      ${cfg.level === 'custom' ? `<div class="row">
+        <label for="sz">Map<select id="sz">${opt(4, 7, cfg.size, k => k + ' × ' + k + ' rooms')}</select></label>
+        <label for="tl">Police turns<select id="tl">${opt(6, 16, cfg.maxTurns, k => k + ' turns')}</select></label>
+        ${cfg.game === 'heist' ? `<label for="ex">Exits<select id="ex">${Object.entries(EXIT_TXT).map(([k, v]) => `<option value="${k}"${cfg.exits === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>` : ''}
+      </div>
+      ${cfg.game === 'heist' ? `<div class="row"><label for="alm">Silent alarms<select id="alm">${[['instant', 'Instant: next police turn'], ['delayed', 'Delayed: one turn late'], ['off', 'Off']].map(([v, t]) => `<option value="${v}"${cfg.alarms === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>` : ''}` : ''}
+      <fieldset><legend>Building</legend>
+        <label class="choice"><input type="radio" name="layout" id="b-shape" value="shape"${cfg.layout === 'shape' ? ' checked' : ''}><span><b>New building every game</b><small>A new outline each time (L, U, T, H, cross, courtyard and more) with its own walls, dead ends and choke points. Every room stays reachable.</small></span></label>
+        <label class="choice"><input type="radio" name="layout" id="b-random" value="random"${cfg.layout === 'random' ? ' checked' : ''}><span><b>Square building, new walls</b><small>The outline stays square; only the walls and doors change.</small></span></label>
+        <label class="choice"><input type="radio" name="layout" id="b-open" value="open"${cfg.layout === 'open' ? ' checked' : ''}><span><b>Open plan</b><small>Every room has a door on every side.</small></span></label>
+      </fieldset>
+      <fieldset><legend>Players</legend>
+        <label class="choice"><input type="radio" name="mode" id="m-pvp" value="pvp"${cfg.mode === 'pvp' ? ' checked' : ''}><span><b>Two players, one device</b><small>Pass the device between turns. The other player looks away.</small></span></label>
+        <label class="choice"><input type="radio" name="mode" id="m-cpu" value="cpu"${cfg.mode === 'cpu' ? ' checked' : ''}><span><b>Police vs computer thief</b><small>You chase. The computer hides and only hears footsteps, like a human thief.</small></span></label>
+      </fieldset>
+      <div class="row"><label for="ck">Time bank per player<select id="ck">${[[0, 'Off'], [60, '1 minute'], [120, '2 minutes'], [180, '3 minutes'], [300, '5 minutes']].map(([v, t]) => `<option value="${v}"${cfg.clock === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
+      <p class="hint" style="margin-top:-6px">Like a chess clock: each player's time runs only during their own turns${cfg.mode === 'cpu' ? '' : ' and pauses while the device is passed'}. Whoever runs out first loses.</p>
+      <div class="btns"><button class="primary" data-act="start">Start game</button></div>
+      ${cfg.mode === 'pvp' && cfg.level !== 'custom' ? '<p class="hint">With two players, difficulty sets the building and the clues. Harder levels favour the thief.</p>' : ''}`;
+  } else if (ph === 'place') {
+    h = `<p class="eyebrow"><b>Player A</b> · Thief</p><h2>Pick a hiding room</h2>
+      <p>${S.game === 'heist' ? 'Choose where the thief breaks in: any room except the entrance, an exit or a vault.' : 'Choose any room except the entrance.'} Player B, look away.</p>
+      <p class="hint">Tap a room to start there.</p>`;
+  } else if (ph === 'handoff') {
+    const toPolice = S.next === 'police';
+    h = `<p class="eyebrow">${turnTxt}</p><h2>Pass to the ${toPolice ? 'police' : 'thief'}</h2>
+      <p>${toPolice ? 'Player B takes the device. Thief, look away.' : 'Player A takes the device. Police, look away.'}</p>
+      <div class="btns"><button class="${toPolice ? 'primary' : 'thiefbtn'}" data-act="reveal">I'm the ${toPolice ? 'police' : 'thief'}. Show my turn</button></div>`;
+  } else if (ph === 'police') {
+    const p = last(S.police), nm = SIG[S.sig][0], ds = sigDesc(S.sig);
+    h = `<p class="eyebrow"><b>${S.mode === 'pvp' ? 'Player B' : 'You'}</b> · Police · ${turnTxt}</p>
+      <div class="signal"><div class="swatch bg-${S.sig}"></div><div><b>${nm}</b><span>${ds}</span></div></div>
+      ${S.alarmNow != null ? `<div class="signal"><div class="swatch bg-loot"></div><div><b>Silent alarm${S.alarmLate ? ' (late)' : ''}</b><span>${S.alarmLate ? `The vault in ${lab(S.alarmNow)} was emptied a turn ago. The thief has moved on, but only one room away.` : `The vault in ${lab(S.alarmNow)} was just emptied. The thief is standing in it right now.`}</span></div></div>` : ''}
+      ${S.game === 'heist' ? `<p class="hint">Vaults: ${S.vaults.map(v => lab(v) + (S.knownEmpty.includes(v) ? ' (emptied)' : '')).join(' · ')}${S.alarms === 'off' ? ' · alarms off, so you can\'t tell which are emptied' : S.alarms === 'delayed' ? ' · alarms reach you one turn late' : ''}. Exits: ${S.exits.map(lab).join(' and ')}. If time runs out with the thief inside, you win.</p>` : ''}
+      <p>You're in <b>${lab(p)}</b>. Tap a neighbouring room to move there, or wait here.</p>
+      <div class="btns">
+        <button class="primary" data-act="pwait">Wait in ${lab(p)}</button>
+        <button class="ghost${S.pencil ? ' on' : ''}" data-act="pencil" aria-pressed="${S.pencil}">${S.pencil ? 'Marking: on' : 'Mark rooms'}</button>
+      </div>
+      ${S.pencil ? '<p class="hint">Tap any room to cycle ✕ (ruled out), ? (suspect), or clear. Turn marking off to move.</p>' : ''}
+      <div><p class="eyebrow" style="margin-bottom:6px">Signal log</p><ul class="log">${S.signals.slice().reverse().map(g => `<li><span>Turn ${g.turn}</span><em>${lab(g.room)}</em><i class="bg-${g.lvl}"></i><span>${SIG[g.lvl][0]}</span></li>`).join('')}</ul></div>`;
+  } else if (ph === 'thief') {
+    const t = last(S.thief);
+    h = `<p class="eyebrow"><b>Player A</b> · Thief · ${turnTxt}</p>
+      <div class="signal"><div class="swatch bg-${S.notice ? 'hot' : 'quiet'}"></div><div><b>${S.notice ? 'Footsteps' : 'All quiet'}</b><span>${S.notice ? 'The police are in a room next to yours.' : 'No police in the rooms next to you.'}</span></div></div>
+      <p>You're in <b style="color:var(--thief)">${lab(t)}</b>. Move to a neighbouring room you haven't visited. ${S.notice ? 'One of them may hold the police.' : ''}</p>
+      ${S.game === 'heist' ? `<div class="signal"><div class="swatch bg-loot"></div><div><b>Loot ${S.looted.length} of ${S.need}</b><span>${S.looted.length >= S.need ? 'You have enough. Reach an exit: ' + S.exits.map(lab).join(' or ') + '.' : 'Unrobbed vaults: ' + S.vaults.filter(v => !S.looted.includes(v)).map(lab).join(', ') + '.'}${S.alarms === 'instant' ? ' Robbing a vault trips a silent alarm.' : S.alarms === 'delayed' ? ' Robbing a vault trips a silent alarm, but the police hear it one turn late.' : ''} ${S.turn >= S.maxTurns ? '<b style="font:inherit;display:inline;color:var(--hot)">This is your last move.</b>' : (S.maxTurns - S.turn + 1) + ' moves left.'}</span></div></div>` : ''}
+      <p class="hint">Tap a dashed room to move there.</p>
+      <div><p class="eyebrow" style="margin-bottom:6px">Your trail</p><p class="trail">${trailText(S.thief)}</p></div>`;
+  } else if (ph === 'over') {
+    const R = S.result, tp = lab(last(S.thief));
+    const why = { caught: `The police entered ${tp} on turn ${S.turn}.`, walked: `The thief walked into the police in ${tp}.`,
+      cornered: `The thief was cornered in ${tp} with no unvisited room left.`, escaped: `The thief stayed free for all ${S.maxTurns} turns.`,
+      heist: `The thief escaped through ${tp} with ${S.looted.length} loot.`, pclock: `The police ran out of time.`, tclock: `The thief ran out of time in ${tp}.`, timeout: `Time ran out with the thief still inside, holding ${S.looted.length} of ${S.need} loot.` }[R.why];
+    h = `<div class="result" style="display:flex;flex-direction:column;gap:12px"><p class="eyebrow">Game over</p>
+      <h2 class="${R.w === 'police' ? 'pw' : 'tw'}">${R.w === 'police' ? 'Police win' : 'Thief wins'}</h2><p>${why}</p>
+      <dl class="kv"><dt>Thief</dt><dd style="color:var(--thief)">${trailText(S.thief)}</dd>
+      <dt>Police</dt><dd>${S.police.map((r, k) => k && r === S.police[k - 1] ? 'wait' : lab(r)).join(' → ')}</dd>
+      ${S.game === 'heist' ? `<dt>Loot</dt><dd style="color:var(--loot)">${S.looted.length ? S.looted.map(lab).join(', ') : 'none'}</dd>` : ''}
+      <dt>Signals</dt><dd>${S.signals.map(g => SIG[g.lvl][0]).join(', ')}</dd></dl>
+      <div class="btns"><button class="primary" data-act="start">Play again</button><button data-act="setup">Change settings</button></div></div>`;
+  }
+  P.innerHTML = h;
+  document.getElementById('quit').hidden = ph === 'setup';
+}
+function renderStrip() {
+  const el = document.getElementById('strip');
+  const lv = S.level === 'custom' ? 'Custom' : LEVELS[S.level].name;
+  if (S.phase === 'setup') { el.innerHTML = `<span>${lv} · ${S.size} × ${S.size} rooms · ${S.maxTurns} police turns</span>`; return; }
+  let p = '';
+  for (let t = 1; t <= S.maxTurns; t++) p += `<span class="pip ${t < S.turn || (S.phase === 'over' && t <= S.turn) ? 'used' : t === S.turn ? 'now' : ''}"></span>`;
+  const who = { place: 'Thief hiding', handoff: 'Pass the device', police: 'Police turn', thief: 'Thief turn', over: 'Revealed' }[S.phase];
+  const ck = !S.clockOn ? '' : `<span class="clocks"><span class="clk" data-r="police">Police <b>–</b></span>${S.mode === 'pvp' ? '<span class="clk" data-r="thief">Thief <b>–</b></span>' : ''}</span>`;
+  el.innerHTML = `<span>${who} · ${lv}${S.shapeName && S.phase !== 'setup' ? ' · ' + S.shapeName + ' building' : ''}</span>${ck}<span class="pips" aria-label="Turn ${S.turn} of ${S.maxTurns}">${p}</span>`;
+}
+function render() { clockSync(); renderStrip(); renderBoard(); renderPanel(); updateClocks(); }
+
+/* ---------- time banks (chess clock) ---------- */
+function clockSync() {
+  if (!S.clockOn) return;
+  const now = Date.now();
+  if (S.clockPhase && S.tickAt != null) S.bank[S.clockPhase] = Math.max(0, S.bank[S.clockPhase] - (now - S.tickAt));
+  const active = S.phase === 'police' || (S.phase === 'thief' && S.mode === 'pvp') ? S.phase : null;
+  S.clockPhase = active; S.tickAt = active ? now : null;
+}
+const leftMs = r => S.bank[r] - (S.clockPhase === r && S.tickAt != null ? Date.now() - S.tickAt : 0);
+const fmt = ms => { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+function updateClocks() {
+  if (!S.clockOn) return;
+  document.querySelectorAll('.clk').forEach(c => { const r = c.dataset.r, ms = leftMs(r);
+    c.querySelector('b').textContent = fmt(ms); c.classList.toggle('on', S.clockPhase === r); c.classList.toggle('low', ms <= 15000); });
+}
+setInterval(() => {
+  if (!S || !S.clockOn || !S.clockPhase || S.phase === 'over') return;
+  const r = S.clockPhase;
+  if (leftMs(r) <= 0) { S.bank[r] = 0; S.clockPhase = null; S.tickAt = null; end(r === 'police' ? 'thief' : 'police', r === 'police' ? 'pclock' : 'tclock'); }
+  else updateClocks();
+}, 250);
+
+/* ---------- input ---------- */
+function roomTap(i) {
+  if (S.phase === 'place') { if (special(i)) return; S.sel = i; return confirmPlace(); }
+  else if (S.phase === 'police') {
+    const p = last(S.police);
+    if (S.pencil) { S.marks[i] = S.marks[i] === 'x' ? 'q' : S.marks[i] === 'q' ? undefined : 'x'; }
+    else if (nb(p).includes(i)) return policeAct(i);
+    else return;
+  } else if (S.phase === 'thief') {
+    if (thiefOptions().includes(i)) return thiefAct(i);
+    return;
+  } else return;
+  render();
+}
+function confirmPlace() { S.thief = [S.sel]; S.sel = null; beginPolice(); render(); }
+
+document.getElementById('boardHost').addEventListener('click', e => { const g = e.target.closest('.room.click'); if (g) roomTap(+g.dataset.i); });
+document.getElementById('boardHost').addEventListener('keydown', e => {
+  const g = e.target.closest && e.target.closest('.room.click');
+  if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); const i = +g.dataset.i; roomTap(i);
+    const again = document.querySelector(`.room.click[data-i="${i}"]`); if (again) again.focus(); }
+});
+document.getElementById('panel').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b || b.disabled) return;
+  const a = b.dataset.act;
+  if (a === 'start') startGame();
+  else if (a === 'setup') { S = fresh(cfg); render(); }
+  else if (a === 'place') confirmPlace();
+  else if (a === 'reveal') { S.phase = S.next; render(); }
+  else if (a === 'pmove') policeAct(S.sel);
+  else if (a === 'pwait') policeAct(last(S.police));
+  else if (a === 'pencil') { S.pencil = !S.pencil; S.sel = null; render(); }
+  else if (a === 'tmove') thiefAct(S.sel);
+});
+document.getElementById('panel').addEventListener('change', e => {
+  const t = e.target;
+  if (t.name === 'mode') cfg.mode = t.value;
+  else if (t.name === 'game') { cfg.game = t.value; if (cfg.level === 'custom') cfg.maxTurns = t.value === 'heist' ? 12 : 10; else applyLevel(); }
+  else if (t.name === 'level') { cfg.level = t.value; applyLevel(); }
+  else if (t.id === 'alm') cfg.alarms = t.value;
+  else if (t.id === 'ex') cfg.exits = t.value;
+  else if (t.id === 'ck') cfg.clock = +t.value;
+  else if (t.name === 'layout') cfg.layout = t.value;
+  else if (t.id === 'sz') cfg.size = +t.value;
+  else if (t.id === 'tl') cfg.maxTurns = +t.value;
+  else return;
+  S = fresh(cfg); render();
+});
+document.getElementById('quit').addEventListener('click', () => { S = fresh(cfg); render(); });
+
+const toastLoot = m => { if (S.mode === 'pvp') toast('Loot grabbed in ' + lab(m) + '.'); };
+let tt;
+function toast(m) { const el = document.getElementById('toast'); el.textContent = m; el.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('show'), 1600); }
+
+try { window.claude?.hot?.snapshot?.(() => ({ S, cfg })); } catch (e) {}
+function boot(d) { if (d && d.S && d.S.phase && d.S.vaults && d.S.faint && d.S.bank && d.S.pending && d.S.layout && d.S.side) { S = d.S; cfg = d.cfg || cfg; } render(); }
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
+
+</body>
+</html>

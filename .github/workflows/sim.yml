@@ -1,0 +1,16 @@
+name: Simulation smoke test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Play 30 games per mode, level and police type
+        run: npm test
