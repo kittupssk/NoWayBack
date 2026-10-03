@@ -1,6 +1,6 @@
-# Police & Thief
+# NoWayBack
 
-A two-player hidden-movement chase game played across a building of connected rooms. The thief moves in secret; the police read heat signals to track it down.
+**Police & Thief**: a two-player hidden-movement chase game played across a building of connected rooms. The thief moves in secret; the police read heat signals to track it down.
 
 Everything is plain HTML, CSS, SVG and JavaScript in a single file. There is no build step and no dependencies.
 
